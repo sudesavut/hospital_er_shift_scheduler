@@ -17,7 +17,11 @@ collect_all('ortools') pulls in its native .so/.dylib extensions and data
 files, which plain PyInstaller static analysis tends to miss for a
 C-extension-heavy package like this — the #1 real cause of "works with
 python -m ... but not from the packaged .app" bugs.
+On Windows, the BUNDLE() step below (which produces a macOS .app) is skipped
+— dist/NobetListesi/ (containing NobetListesi.exe) is the final build there.
 """
+
+import sys
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -74,15 +78,16 @@ coll = COLLECT(
     name="NobetListesi",
 )
 
-app = BUNDLE(
-    coll,
-    name="NobetListesi.app",
-    icon=None,
-    bundle_identifier="com.sudesavut.nobetlistesi",
-    info_plist={
-        "CFBundleName": "Nöbet Listesi",
-        "CFBundleDisplayName": "Nöbet Listesi",
-        "CFBundleShortVersionString": "1.0.0",
-        "NSHighResolutionCapable": True,
-    },
-)
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="NobetListesi.app",
+        icon=None,
+        bundle_identifier="com.sudesavut.nobetlistesi",
+        info_plist={
+            "CFBundleName": "Nöbet Listesi",
+            "CFBundleDisplayName": "Nöbet Listesi",
+            "CFBundleShortVersionString": "1.0.0",
+            "NSHighResolutionCapable": True,
+        },
+    )
