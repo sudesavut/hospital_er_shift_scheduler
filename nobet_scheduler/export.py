@@ -28,6 +28,18 @@ HEADER_FONT = Font(bold=True, color="FFFFFF")
 GROUP_HEADER_FONT = Font(bold=True)
 CENTER = Alignment(horizontal="center", vertical="center")
 
+FOOTER_LINE_1 = "Hazırlayan: S. Savut"
+FOOTER_LINE_2 = "Sorularınız için: ssavut@ethz.ch"
+FOOTER_FONT = Font(size=8, color="808080")
+
+
+def _write_footer(ws: Worksheet, last_used_row: int) -> None:
+    """Writes the two-line footer a few blank rows below the table, in a
+    small/plain font so it reads as a signature, not table data."""
+    row = last_used_row + 3
+    ws.cell(row=row, column=1, value=FOOTER_LINE_1).font = FOOTER_FONT
+    ws.cell(row=row + 1, column=1, value=FOOTER_LINE_2).font = FOOTER_FONT
+
 
 def export_schedule(result: ScheduleResult, doctors: list[Doctor], output_path: str | Path) -> None:
     wb = Workbook()
@@ -123,6 +135,8 @@ def _write_schedule_sheet(ws: Worksheet, result: ScheduleResult) -> None:
         ws.column_dimensions[get_column_letter(c)].width = 16
     ws.freeze_panes = "B3"
 
+    _write_footer(ws, last_used_row=row - 1)
+
 
 def _day_night_counts(result: ScheduleResult) -> dict[str, tuple[int, int]]:
     """Per-doctor (day_count, night_count), tallied from every role assignment
@@ -165,3 +179,5 @@ def _write_summary_sheet(ws: Worksheet, result: ScheduleResult, doctors: list[Do
 
     for c in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(c)].width = 22
+
+    _write_footer(ws, last_used_row=len(doctors) + 1)

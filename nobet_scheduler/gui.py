@@ -20,6 +20,9 @@ from .model import build_and_solve_schedule
 OUTPUT_FILE_NAME = "nobet_listesi.xlsx"
 QUEUE_POLL_INTERVAL_MS = 100
 
+FOOTER_LINE_1 = "Hazırlayan: S. Savut"
+FOOTER_LINE_2 = "Sorularınız için: ssavut@ethz.ch"
+
 
 def _default_output_dir() -> str:
     desktop = Path.home() / "Desktop"
@@ -75,6 +78,14 @@ class SchedulerApp:
 
         ttk.Label(frame, textvariable=self.status_var, foreground="gray").grid(
             row=8, column=0, columnspan=3, sticky="w", pady=(8, 0)
+        )
+
+        footer_font = ("TkDefaultFont", 9)
+        ttk.Label(frame, text=FOOTER_LINE_1, foreground="gray", font=footer_font).grid(
+            row=9, column=0, columnspan=3, sticky="w", pady=(16, 0)
+        )
+        ttk.Label(frame, text=FOOTER_LINE_2, foreground="gray", font=footer_font).grid(
+            row=10, column=0, columnspan=3, sticky="w"
         )
 
         self.root.after(QUEUE_POLL_INTERVAL_MS, self._poll_result_queue)
