@@ -1,1 +1,0 @@
-../../../Resources/ortools/math_opt/sparse_containers_pb2.pyi

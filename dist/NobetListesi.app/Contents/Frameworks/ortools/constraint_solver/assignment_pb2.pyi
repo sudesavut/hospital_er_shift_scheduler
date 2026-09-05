@@ -1,1 +1,0 @@
-../../../Resources/ortools/constraint_solver/assignment_pb2.pyi

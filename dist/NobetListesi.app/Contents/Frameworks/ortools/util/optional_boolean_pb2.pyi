@@ -1,1 +1,0 @@
-../../../Resources/ortools/util/optional_boolean_pb2.pyi

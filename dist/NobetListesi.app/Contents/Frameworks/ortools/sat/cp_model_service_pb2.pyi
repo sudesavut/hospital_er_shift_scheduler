@@ -1,1 +1,0 @@
-../../../Resources/ortools/sat/cp_model_service_pb2.pyi

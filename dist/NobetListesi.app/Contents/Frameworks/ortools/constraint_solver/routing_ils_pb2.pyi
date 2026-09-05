@@ -1,1 +1,0 @@
-../../../Resources/ortools/constraint_solver/routing_ils_pb2.pyi

@@ -1,1 +1,0 @@
-../../../Resources/ortools/constraint_solver/solver_parameters_pb2.pyi

@@ -1,1 +1,0 @@
-../../../Resources/ortools/math_opt/parameters_pb2.pyi
