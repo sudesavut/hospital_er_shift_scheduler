@@ -1,0 +1,1 @@
+../../../Resources/ortools/scheduling/course_scheduling_pb2.pyi

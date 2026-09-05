@@ -1,0 +1,1 @@
+../../../../../Resources/ortools/math_opt/core/python/solver.pyi

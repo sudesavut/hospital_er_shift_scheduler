@@ -1,0 +1,1 @@
+../../../Resources/ortools/math_opt/callback_pb2.pyi

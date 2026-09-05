@@ -1,0 +1,1 @@
+../../../Resources/ortools/math_opt/solution_pb2.pyi

@@ -1,0 +1,1 @@
+../../../Resources/ortools/constraint_solver/search_limit_pb2.pyi

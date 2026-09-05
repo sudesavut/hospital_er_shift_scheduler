@@ -1,0 +1,1 @@
+../../../../Resources/ortools/util/python/pybind_solve_interrupter.pyi

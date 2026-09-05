@@ -1,0 +1,10 @@
+[
+  {"name": "Dr. Ayse Kaya", "seniority": 4, "shift_count_target": 10, "leave_dates": ["2026-09-14", "2026-09-15"]},
+  {"name": "Dr. Mehmet Demir", "seniority": 3, "shift_count_target": 9, "leave_dates": []},
+  {"name": "Dr. Elif Yilmaz", "seniority": 2, "shift_count_target": 9, "leave_dates": ["2026-09-01"]},
+  {"name": "Dr. Can Sahin", "seniority": 1, "shift_count_target": 8, "leave_dates": []},
+  {"name": "Dr. Zeynep Arslan", "seniority": 0, "shift_count_target": 8, "leave_dates": ["2026-09-20"]},
+  {"name": "Dr. Burak Celik", "seniority": 0, "shift_count_target": 8, "leave_dates": []},
+  {"name": "Dr. Deniz Kurt", "seniority": 0, "shift_count_target": 7, "leave_dates": []},
+  {"name": "Dr. Selin Aydin", "seniority": 0, "shift_count_target": 7, "leave_dates": ["2026-09-10", "2026-09-11"]}
+]

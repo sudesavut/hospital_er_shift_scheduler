@@ -1,0 +1,1 @@
+../../../../Resources/ortools/algorithms/python/knapsack_solver.pyi
