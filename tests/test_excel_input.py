@@ -68,12 +68,12 @@ def test_excel_roster_solves_to_a_feasible_schedule_matching_targets():
 
 def test_leave_days_range_and_single_mixed_format():
     excel_doctors = load_doctors_from_excel(EXCEL_FIXTURE, year=2026, month=9)
-    ozan = next(d for d in excel_doctors if d.name == "Dr. Ozan Sarıkaya")
+    doctor = next(d for d in excel_doctors if d.name == "Dr. Test01")
     # source JSON: 2026-09-01..10 plus 2026-09-25 -> Excel cell "1-10, 25"
     from datetime import date
 
     expected = {date(2026, 9, day) for day in range(1, 11)} | {date(2026, 9, 25)}
-    assert ozan.leave_dates == expected
+    assert doctor.leave_dates == expected
 
 
 def test_invalid_leave_cell_reports_row_number(tmp_path):

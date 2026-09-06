@@ -8,12 +8,12 @@ from nobet_scheduler.model import (
 )
 
 
-def test_role_priority_order_is_nobet_basi_then_comez_basi_then_kapici():
-    """Nöbet_başı > Çömez_başı > Kapıcı > Çömez (Çömez has no weight entry —
-    it's excluded from ROLE_PRIORITY_WEIGHT, discouraged/rewarded separately
-    via SENIOR_IN_COMEZ_PENALTY instead)."""
-    assert (
-        ROLE_PRIORITY_WEIGHT[ROLE_NOBET_BASI]
-        > ROLE_PRIORITY_WEIGHT[ROLE_COMEZ_BASI]
-        > ROLE_PRIORITY_WEIGHT[ROLE_KAPICI]
-    )
+def test_role_priority_order_is_comez_basi_then_kapici():
+    """Çömez_başı > Kapıcı > Çömez among the roles subject to a flat
+    per-assignment reward. nobet_basi is deliberately excluded from
+    ROLE_PRIORITY_WEIGHT — a flat reward with no diminishing returns would
+    just pile every nobet_basi turn onto the single highest-ranked doctor;
+    its distribution is governed instead by the fair-share deviation
+    objective (_nobet_basi_fair_shares)."""
+    assert ROLE_NOBET_BASI not in ROLE_PRIORITY_WEIGHT
+    assert ROLE_PRIORITY_WEIGHT[ROLE_COMEZ_BASI] > ROLE_PRIORITY_WEIGHT[ROLE_KAPICI]

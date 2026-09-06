@@ -29,10 +29,15 @@ ROLE_COMEZ_BASI = "comez_basi"
 ROLE_COMEZ = "comez"
 
 # Soft priority rule: higher seniority should preferentially fill the more
-# important role (nobet_basi > comez_basi > kapici > comez). This is NOT a
-# hard constraint, only an objective-function preference.
+# important role (comez_basi > kapici > comez). This is NOT a hard
+# constraint, only an objective-function preference. nobet_basi is
+# deliberately NOT in here — a flat per-assignment reward scaling with
+# seniority rank has no diminishing returns, so it just piles every
+# nobet_basi turn onto the single highest-ranked doctor all month. Its
+# distribution is governed instead by the fair-share deviation objective
+# below (see _nobet_basi_fair_shares), which self-corrects as each doctor's
+# actual count approaches their proportional target.
 ROLE_PRIORITY_WEIGHT = {
-    ROLE_NOBET_BASI: 4,
     ROLE_COMEZ_BASI: 3,
     ROLE_KAPICI: 2,
 }
@@ -72,18 +77,27 @@ DAY_NIGHT_BALANCE_PENALTY = 2
 # whole month's unavoidable day/night skew onto a couple of doctors as long as
 # the total stayed low; this instead spreads it across everyone. Weighted well
 # above any single-assignment role-priority reward (bounded by
-# ROLE_PRIORITY_WEIGHT[nobet_basi] * max relative seniority rank — see
+# ROLE_PRIORITY_WEIGHT[comez_basi] * max relative seniority rank — see
 # _seniority_ranks) so it dominates.
 MAX_IMBALANCE_PENALTY = 100
 
-# Every senior doctor (seniority >= 1) should be nobet_basi proportionally to
-# their workload: one guaranteed chief turn per every NOBET_BASI_PER_SHIFTS
-# shifts in their target (hard requirement = shift_count_target // N). Below
-# one full group of NOBET_BASI_PER_SHIFTS shifts, only a soft, best-effort
-# reward applies (never breaks feasibility for doctors with very few shifts
-# or heavy leave).
-NOBET_BASI_PER_SHIFTS = 5
-AT_LEAST_ONE_NOBET_BASI_BONUS = 25
+# nobet_basi fair-share: instead of maximizing a per-assignment reward (which
+# just piles every turn onto the single highest-ranked doctor), each senior
+# doctor with shift_count_target >= 1 gets a personal target — their
+# proportional share of the month's nobet_basi slots, by seniority — and the
+# objective minimizes how far their ACTUAL count ends up from THAT target.
+# More senior doctors get a bigger target (so they still end up with more
+# nobet_basi turns overall), but nobody's target grows unboundedly, so nobody
+# can absorb the whole month by piling up flat per-assignment rewards.
+# Secondary (small) term: sum of deviations, a tie-break once the worst case
+# below is already minimized.
+NOBET_BASI_DEVIATION_PENALTY = 5
+
+# Primary term: minimizes the WORST per-doctor deviation from their fair
+# share (a minimax) — same reasoning as the day/night and kapici balancing
+# above: a low total-deviation sum alone would still let one or two doctors
+# sit far off their target as long as everyone else is spot-on.
+MAX_NOBET_BASI_DEVIATION_PENALTY = 40
 
 # Every senior doctor with shift_count_target >= 1 must be kapici at least
 # once during the month (hard). A proportional rule ("1 kapici per N
@@ -94,6 +108,30 @@ AT_LEAST_ONE_NOBET_BASI_BONUS = 25
 # (nobet_basi > comez_basi > kapici) meant the most senior doctors could go
 # an entire month never doing kapici duty at all.
 KAPICI_FAIRNESS_PENALTY = 15
+
+
+def _nobet_basi_fair_shares(doctors: list[Doctor], total_slots: int) -> dict[str, int]:
+    """Each eligible senior doctor's proportional nobet_basi target:
+    total_slots * (their seniority / sum of all eligible seniors' seniority),
+    rounded to the nearest integer and capped at their own shift_count_target
+    (a fair share can never exceed how many shifts they even work this
+    month). Uses raw seniority values on purpose — this is a ratio, so it's
+    scale-invariant regardless of whether seniority runs 0-4, 0-2, or 0-100
+    (unlike a flat per-assignment weight, where the raw value's absolute
+    size matters and would need the relative-rank treatment instead).
+
+    A doctor with shift_count_target == 0 is excluded entirely: they can
+    never be assigned anything, so they'd only dilute everyone else's share
+    for no reason.
+    """
+    eligible = [d for d in doctors if d.is_senior and d.shift_count_target >= 1]
+    total_seniority = sum(d.seniority for d in eligible)
+    if not eligible or total_seniority == 0:
+        return {}
+    return {
+        d.name: min(round(total_slots * d.seniority / total_seniority), d.shift_count_target)
+        for d in eligible
+    }
 
 
 def roles_for_shift(is_day_shift: bool) -> list[str]:
@@ -221,14 +259,14 @@ def build_and_solve_schedule(
                     night_var(s.day_index, d.name) + day_var(nxt, d.name) + night_var(nxt, d.name) <= 2
                 )
 
-    # Hard requirement: a senior doctor must be nobet_basi at least
-    # (shift_count_target // NOBET_BASI_PER_SHIFTS) times during the month.
+    # Hard requirement: every senior doctor with at least 1 shift this month
+    # must be nobet_basi at least once — no full exclusion. How much MORE
+    # than 1 they get is governed by the fair-share deviation objective
+    # below, not a hard proportional floor (that would fight the fair-share
+    # mechanism instead of complementing it).
     for d in doctors:
-        if not d.is_senior:
-            continue
-        required_min = d.shift_count_target // NOBET_BASI_PER_SHIFTS
-        if required_min >= 1:
-            model.Add(sum(role_vars[(s, d.name, ROLE_NOBET_BASI)] for s in shifts) >= required_min)
+        if d.is_senior and d.shift_count_target >= 1:
+            model.Add(sum(role_vars[(s, d.name, ROLE_NOBET_BASI)] for s in shifts) >= 1)
 
     # Hard requirement: every senior doctor with at least 1 shift this month
     # must be kapici at least once. Flat floor, not proportional (see
@@ -253,17 +291,28 @@ def build_and_solve_schedule(
                     objective_terms.append(-SENIOR_IN_COMEZ_PENALTY * rank * role_vars[(s, d.name, r)])
             objective_terms.append(-COMEZ_BASI_SURPLUS_PENALTY * role_vars[(s, d.name, ROLE_COMEZ_BASI)])
 
-    # Reward each low-target senior doctor (target < NOBET_BASI_PER_SHIFTS, so
-    # the hard rule above requires 0) getting at least one nobet_basi
-    # assignment during the month, if achievable (soft — never forces
-    # infeasibility).
-    for d in doctors:
-        if not d.is_senior or d.shift_count_target // NOBET_BASI_PER_SHIFTS >= 1:
-            continue
-        nobet_basi_total = sum(role_vars[(s, d.name, ROLE_NOBET_BASI)] for s in shifts)
-        got_nobet_basi = model.NewBoolVar(f"got_nobet_basi_{d.name}")
-        model.Add(got_nobet_basi <= nobet_basi_total)
-        objective_terms.append(AT_LEAST_ONE_NOBET_BASI_BONUS * got_nobet_basi)
+    # Minimize each eligible senior doctor's deviation from their fair-share
+    # nobet_basi target (see _nobet_basi_fair_shares) — more senior doctors
+    # still end up with proportionally more nobet_basi turns, but nobody's
+    # incentive to take "just one more" keeps growing without bound the way
+    # a flat per-assignment reward would. The shared max_nobet_basi_deviation
+    # variable additionally makes the solver minimize the WORST-off doctor's
+    # deviation, not just the sum (same reasoning as the day/night and
+    # kapici balancing above).
+    nobet_basi_fair_share = _nobet_basi_fair_shares(doctors, total_slots=len(shifts))
+    if nobet_basi_fair_share:
+        max_nobet_basi_deviation = model.NewIntVar(0, len(shifts), "max_nobet_basi_deviation")
+        for d in doctors:
+            if d.name not in nobet_basi_fair_share:
+                continue
+            nobet_basi_total = sum(role_vars[(s, d.name, ROLE_NOBET_BASI)] for s in shifts)
+            target_share = nobet_basi_fair_share[d.name]
+            deviation = model.NewIntVar(0, len(shifts), f"nobet_basi_deviation_{d.name}")
+            model.Add(deviation >= nobet_basi_total - target_share)
+            model.Add(deviation >= target_share - nobet_basi_total)
+            model.Add(max_nobet_basi_deviation >= deviation)
+            objective_terms.append(-NOBET_BASI_DEVIATION_PENALTY * deviation)
+        objective_terms.append(-MAX_NOBET_BASI_DEVIATION_PENALTY * max_nobet_basi_deviation)
 
     # Penalize the same doctor working on two consecutive calendar days
     # (day and/or night shift either day), to spread assignments out. The
