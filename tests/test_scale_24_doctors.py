@@ -23,3 +23,16 @@ def test_24_doctor_scale_is_feasible_for_september_2026():
         if s.is_day_shift:
             assert len(result.assignments[(s, ROLE_KAPICI)]) == 1
         assert len(result.assignments.get((s, ROLE_COMEZ_BASI), [])) >= 1
+
+    # Every senior doctor with at least 1 shift this month must have done
+    # kapici at least once (hard constraint) — the seniority-based role
+    # priority (nobet_basi > comez_basi > kapici) must not let the most
+    # senior doctors skip kapici duty entirely.
+    kapici_counts: dict[str, int] = {d.name: 0 for d in doctors}
+    for s in result.shifts:
+        for name in result.assignments.get((s, ROLE_KAPICI), []):
+            kapici_counts[name] += 1
+
+    for d in doctors:
+        if d.is_senior and d.shift_count_target >= 1:
+            assert kapici_counts[d.name] >= 1, f"{d.name}: hiç kapıcı olmamış"

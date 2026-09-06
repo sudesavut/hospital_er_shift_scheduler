@@ -29,12 +29,12 @@ ROLE_COMEZ_BASI = "comez_basi"
 ROLE_COMEZ = "comez"
 
 # Soft priority rule: higher seniority should preferentially fill the more
-# important role (nobet_basi > kapici > comez_basi > comez). This is NOT a
+# important role (nobet_basi > comez_basi > kapici > comez). This is NOT a
 # hard constraint, only an objective-function preference.
 ROLE_PRIORITY_WEIGHT = {
     ROLE_NOBET_BASI: 4,
-    ROLE_KAPICI: 3,
-    ROLE_COMEZ_BASI: 2,
+    ROLE_COMEZ_BASI: 3,
+    ROLE_KAPICI: 2,
 }
 
 # comez_basi has a hard lower bound of 1 per shift but no upper bound in the
@@ -84,6 +84,16 @@ MAX_IMBALANCE_PENALTY = 100
 # or heavy leave).
 NOBET_BASI_PER_SHIFTS = 5
 AT_LEAST_ONE_NOBET_BASI_BONUS = 25
+
+# Every senior doctor with shift_count_target >= 1 must be kapici at least
+# once during the month (hard). A proportional rule ("1 kapici per N
+# shifts") is mathematically impossible at typical scale — the number of
+# senior doctors times any such ratio vastly exceeds the available kapici
+# slots (one per day, day-only role) — so this uses a flat "at least once"
+# floor instead. Without this, the seniority-based role priority above
+# (nobet_basi > comez_basi > kapici) meant the most senior doctors could go
+# an entire month never doing kapici duty at all.
+KAPICI_FAIRNESS_PENALTY = 15
 
 
 def roles_for_shift(is_day_shift: bool) -> list[str]:
@@ -220,6 +230,15 @@ def build_and_solve_schedule(
         if required_min >= 1:
             model.Add(sum(role_vars[(s, d.name, ROLE_NOBET_BASI)] for s in shifts) >= required_min)
 
+    # Hard requirement: every senior doctor with at least 1 shift this month
+    # must be kapici at least once. Flat floor, not proportional (see
+    # KAPICI_FAIRNESS_PENALTY comment above for why a ratio doesn't fit here).
+    for d in doctors:
+        if d.is_senior and d.shift_count_target >= 1:
+            model.Add(
+                sum(role_vars[(s, d.name, ROLE_KAPICI)] for s in day_shift_by_day.values()) >= 1
+            )
+
     objective_terms = []
     for s in shifts:
         roles = roles_for_shift(s.is_day_shift)
@@ -285,6 +304,19 @@ def build_and_solve_schedule(
         model.Add(max_imbalance >= imbalance)
         objective_terms.append(-DAY_NIGHT_BALANCE_PENALTY * imbalance)
     objective_terms.append(-MAX_IMBALANCE_PENALTY * max_imbalance)
+
+    # Fairness/rotation: lightly discourage concentrating kapici duty onto a
+    # few senior doctors — a minimax on each doctor's own kapici count, so
+    # once the "at least 1" floor is met, the solver still prefers to spread
+    # any additional kapici turns around rather than dumping them on whoever
+    # is cheapest by other criteria. Soft only, not a strict rotation quota.
+    senior_doctors = [d for d in doctors if d.is_senior]
+    if senior_doctors:
+        max_kapici = model.NewIntVar(0, len(day_shift_by_day), "max_kapici_per_doctor")
+        for d in senior_doctors:
+            kapici_total = sum(role_vars[(s, d.name, ROLE_KAPICI)] for s in day_shift_by_day.values())
+            model.Add(max_kapici >= kapici_total)
+        objective_terms.append(-KAPICI_FAIRNESS_PENALTY * max_kapici)
 
     model.Maximize(sum(objective_terms))
 
